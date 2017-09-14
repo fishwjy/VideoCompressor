@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="10dp"
+    android:orientation="vertical"
+    android:gravity="center_horizontal">
+
+    <LinearLayout android:layout_height="wrap_content"
+        android:layout_width="match_parent"
+        android:gravity="center_horizontal"
+        android:orientation="horizontal">
+        <Button android:id="@+id/btn_select"
+            android:layout_height="wrap_content"
+            android:layout_width="wrap_content"
+            android:textAllCaps="false"
+            android:text="Select File"/>
+
+        <Button android:id="@+id/btn_compress"
+            android:layout_height="wrap_content"
+            android:layout_width="wrap_content"
+            android:textAllCaps="false"
+            android:text="Start Compress"/>
+    </LinearLayout>
+
+    <LinearLayout android:layout_height="wrap_content"
+        android:layout_width="match_parent"
+        android:layout_marginTop="5dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+        <TextView android:layout_height="wrap_content"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:textColor="@android:color/black"
+            android:textSize="20sp"
+            android:text="Input: " />
+        <TextView android:id="@+id/tv_input"
+            android:layout_height="wrap_content"
+            android:layout_width="0dp"
+            android:layout_weight="3"
+            android:layout_marginStart="10dp"
+            android:textColor="@android:color/black"
+            android:textSize="12sp"
+            android:text="No File"/>
+    </LinearLayout>
+
+    <LinearLayout android:layout_height="wrap_content"
+        android:layout_width="match_parent"
+        android:layout_marginTop="5dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+        <TextView android:layout_height="wrap_content"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:textColor="@android:color/black"
+            android:textSize="20sp"
+            android:text="Output: " />
+        <TextView android:id="@+id/tv_output"
+            android:layout_height="wrap_content"
+            android:layout_width="0dp"
+            android:layout_weight="3"
+            android:layout_marginStart="10dp"
+            android:textColor="@android:color/black"
+            android:textSize="12sp"
+            android:text="No File"/>
+    </LinearLayout>
+
+    <TextView android:id="@+id/tv_indicator"
+        android:layout_height="wrap_content"
+        android:layout_width="match_parent"
+        android:layout_marginTop="20dp"
+        android:textColor="@android:color/holo_blue_light"
+        android:textSize="18sp" />
+
+    <TextView android:id="@+id/tv_progress"
+        android:layout_height="wrap_content"
+        android:layout_width="match_parent"
+        android:layout_marginTop="20dp"
+        android:textColor="@android:color/holo_blue_light"
+        android:textSize="18sp" />
+
+    <ProgressBar android:id="@+id/pb_compress"
+        android:layout_height="40dp"
+        android:layout_width="40dp"
+        android:visibility="invisible"/>
+
+</LinearLayout>
