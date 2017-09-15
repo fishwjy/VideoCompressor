@@ -30,8 +30,14 @@ A High-performance video compressor for Android using Hardware decoding and enco
 
 ## Performance
 You can find some test results in pic/test_reports.
-I compress a video which is 168MB(00:1:06). It's about 1 minute for compressing.
-And the result of compressing is 11MB. So it's a great job by MediaCodec.
+
+I compress a video which is 168MB(00:01:06). 
+
+And it took 1 minute for compressing.
+
+The result of compressing is 11MB. 
+
+So it's a great job by MediaCodec :) .
 
 ## License
 ```
