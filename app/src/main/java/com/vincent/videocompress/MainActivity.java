@@ -53,10 +53,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Intent intent = new Intent();
-                /* 开启Pictures画面Type设定为image */
-                //intent.setType("video/*;image/*");
-                //intent.setType("audio/*"); //选择音频
-                intent.setType("video/*"); //选择视频 （mp4 3gp 是android支持的视频格式）
+                intent.setType("video/*");
                 intent.setAction(Intent.ACTION_GET_CONTENT);
                 startActivityForResult(intent, REQUEST_FOR_VIDEO_FILE);
             }

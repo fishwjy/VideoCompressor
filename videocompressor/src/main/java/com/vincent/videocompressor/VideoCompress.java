@@ -11,21 +11,9 @@ import android.os.AsyncTask;
 public class VideoCompress {
     private static final String TAG = VideoCompress.class.getSimpleName();
 
-    public static VideoCompressTask compressVideoHigh(String srcPath, String destPath, CompressListener listener) {
-        VideoCompressTask task = new VideoCompressTask(listener, VideoController.COMPRESS_QUALITY_HIGH);
-        task.execute(srcPath, destPath);
-        return task;
-    }
-
-    public static VideoCompressTask compressVideoMedium(String srcPath, String destPath, CompressListener listener) {
-        VideoCompressTask task = new VideoCompressTask(listener, VideoController.COMPRESS_QUALITY_MEDIUM);
-        task.execute(srcPath, destPath);
-        return task;
-    }
-
-    public static VideoCompressTask compressVideoLow(String srcPath, String destPath, CompressListener listener) {
-        VideoCompressTask task =  new VideoCompressTask(listener, VideoController.COMPRESS_QUALITY_LOW);
-        task.execute(srcPath, destPath);
+    public static VideoCompressTask compressVideoLow(String inputPath, String outputPath, CompressListener listener) {
+        VideoCompressTask task =  new VideoCompressTask(listener, VideoController.COMPRESS_QUALITY);
+        task.execute(inputPath, outputPath);
         return task;
     }
 
