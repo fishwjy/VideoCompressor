@@ -9,7 +9,7 @@ import android.os.AsyncTask;
  */
 
 public class VideoCompress {
-    private static final String TAG = VideoCompress.class.getSimpleName();
+    static final String TAG = VideoCompress.class.getSimpleName();
 
     public static VideoCompressTask compressVideoLow(String inputPath, String outputPath, CompressListener listener) {
         VideoCompressTask task =  new VideoCompressTask(listener, VideoController.COMPRESS_QUALITY);
@@ -17,7 +17,7 @@ public class VideoCompress {
         return task;
     }
 
-    private static class VideoCompressTask extends AsyncTask<String, Float, Boolean> {
+    public static class VideoCompressTask extends AsyncTask<String, Float, Boolean> {
         private CompressListener mListener;
         private int mQuality;
 
