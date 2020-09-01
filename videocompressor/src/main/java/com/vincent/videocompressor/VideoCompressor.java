@@ -7,7 +7,6 @@ import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
-import android.media.MediaMetadataRetriever;
 import android.os.Build;
 import android.util.Log;
 
@@ -17,15 +16,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
 
 @SuppressLint("NewApi")
-public class VideoController {
-    static final int COMPRESS_QUALITY_HIGH = 1;
-    static final int COMPRESS_QUALITY_MEDIUM = 2;
-    static final int COMPRESS_QUALITY_LOW = 3;
+public class VideoCompressor {
+    public static final int COMPRESS_QUALITY_HIGH = 1;
+    public static final int COMPRESS_QUALITY_MEDIUM = 2;
+    public static final int COMPRESS_QUALITY_LOW = 3;
 
     public static File cachedFile;
     public String path;
@@ -37,20 +33,20 @@ public class VideoController {
     private final static int PROCESSOR_TYPE_MTK = 3;
     private final static int PROCESSOR_TYPE_SEC = 4;
     private final static int PROCESSOR_TYPE_TI = 5;
-    private static volatile VideoController Instance = null;
+    private static volatile VideoCompressor Instance = null;
     private boolean videoConvertFirstWrite = true;
 
-    interface CompressProgressListener {
+    public interface CompressProgressListener {
         void onProgress(float percent);
     }
 
-    public static VideoController getInstance() {
-        VideoController localInstance = Instance;
+    public static VideoCompressor getInstance() {
+        VideoCompressor localInstance = Instance;
         if (localInstance == null) {
-            synchronized (VideoController.class) {
+            synchronized (VideoCompressor.class) {
                 localInstance = Instance;
                 if (localInstance == null) {
-                    Instance = localInstance = new VideoController();
+                    Instance = localInstance = new VideoCompressor();
                 }
             }
         }
@@ -123,7 +119,7 @@ public class VideoController {
 
         @Override
         public void run() {
-            VideoController.getInstance().convertVideo(videoPath, destPath, 0, null);
+//            VideoController.getInstance().convertVideo(videoPath, destPath, 0, null);
         }
     }
 
@@ -242,20 +238,25 @@ public void scheduleVideoConvert(String path, String dest) {
 
     /**
      * Perform the actual video compression. Processes the frames and does the magic
-     * @param sourcePath the source uri for the file as per
+     * @param matadata the size , duration info for original source
      * @param destinationPath the destination directory where compressed video is eventually saved
      * @return
      */
     @TargetApi(16)
-    public boolean  convertVideo(final String sourcePath, String destinationPath, int quality, CompressProgressListener listener) {
-        this.path=sourcePath;
+    public boolean  convertVideo(VideoMetadata matadata, int quality, CompressProgressListener listener) {
+        this.path = matadata.getSourcePath();
+        String destinationPath = matadata.getDestinationPath();
+//        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+//        retriever.setDataSource(path);
+//        String width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH);
+//        String height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT);
+//        String rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
+//        long duration = Long.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)) * 1000;
 
-        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-        retriever.setDataSource(path);
-        String width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH);
-        String height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT);
-        String rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
-        long duration = Long.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)) * 1000;
+        String width = matadata.getWidth();
+        String height = matadata.getHeight();
+        String rotation = matadata.getRotation();
+        long duration = matadata.getDuration() * 1000;
 
         long startTime = -1;
         long endTime = -1;
@@ -520,7 +521,8 @@ public void scheduleVideoConvert(String path, String dest) {
                                             videoTrackIndex = mediaMuxer.addTrack(newFormat, false);
                                         }
                                     } else if (encoderStatus < 0) {
-                                        throw new RuntimeException("unexpected result from encoder.dequeueOutputBuffer: " + encoderStatus);
+                                        encoderInputBuffers = encoder.getInputBuffers();
+//                                        throw new RuntimeException("unexpected result from encoder.dequeueOutputBuffer: " + encoderStatus);
                                     } else {
                                         ByteBuffer encodedData;
                                         if (Build.VERSION.SDK_INT < 21) {
@@ -582,7 +584,8 @@ public void scheduleVideoConvert(String path, String dest) {
                                             MediaFormat newFormat = decoder.getOutputFormat();
                                             Log.e("tmessages", "newFormat = " + newFormat);
                                         } else if (decoderStatus < 0) {
-                                            throw new RuntimeException("unexpected result from decoder.dequeueOutputBuffer: " + decoderStatus);
+                                            encoderOutputBuffers = decoder.getOutputBuffers();
+//                                            throw new RuntimeException("unexpected result from decoder.dequeueOutputBuffer: " + decoderStatus);
                                         } else {
                                             boolean doRender;
                                             if (Build.VERSION.SDK_INT >= 18) {
@@ -722,9 +725,9 @@ public void scheduleVideoConvert(String path, String dest) {
         }*/
 
         //inputFile.delete();
-        Log.e("ViratPath",path+"");
-        Log.e("ViratPath",cacheFile.getPath()+"");
-        Log.e("ViratPath",inputFile.getPath()+"");
+//        Log.e("ViratPath",path+"");
+//        Log.e("ViratPath",cacheFile.getPath()+"");
+//        Log.e("ViratPath",inputFile.getPath()+"");
 
 
        /* Log.e("ViratPath",path+"");
