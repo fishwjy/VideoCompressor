@@ -17,32 +17,24 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
 
 @SuppressLint("NewApi")
 public class VideoController {
-    static final int COMPRESS_QUALITY_HIGH = 1;
-    static final int COMPRESS_QUALITY_MEDIUM = 2;
-    static final int COMPRESS_QUALITY_LOW = 3;
 
     public static File cachedFile;
     public String path;
 
     public final static String MIME_TYPE = "video/avc";
+
     private final static int PROCESSOR_TYPE_OTHER = 0;
     private final static int PROCESSOR_TYPE_QCOM = 1;
     private final static int PROCESSOR_TYPE_INTEL = 2;
     private final static int PROCESSOR_TYPE_MTK = 3;
     private final static int PROCESSOR_TYPE_SEC = 4;
     private final static int PROCESSOR_TYPE_TI = 5;
+
     private static volatile VideoController Instance = null;
     private boolean videoConvertFirstWrite = true;
-
-    interface CompressProgressListener {
-        void onProgress(float percent);
-    }
 
     public static VideoController getInstance() {
         VideoController localInstance = Instance;
@@ -88,6 +80,7 @@ public class VideoController {
 
     public native static int convertVideoFrame(ByteBuffer src, ByteBuffer dest, int destFormat, int width, int height, int padding, int swap);
 
+    @SuppressWarnings({"unused", "RedundantSuppression"})
     private void didWriteData(final boolean last, final boolean error) {
         final boolean firstWrite = videoConvertFirstWrite;
         if (firstWrite) {
@@ -97,21 +90,19 @@ public class VideoController {
 
     public static class VideoConvertRunnable implements Runnable {
 
-        private String videoPath;
-        private String destPath;
+        private final CompressVideoRequest compressVideoRequest;
 
-        private VideoConvertRunnable(String videoPath, String destPath) {
-            this.videoPath = videoPath;
-            this.destPath = destPath;
+        public VideoConvertRunnable(CompressVideoRequest compressVideoRequest) {
+            this.compressVideoRequest = compressVideoRequest;
         }
 
-        public static void runConversion(final String videoPath, final String destPath) {
+        public static void runConversion(final CompressVideoRequest compressVideoRequest) {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
                     try {
-                        VideoConvertRunnable wrapper = new VideoConvertRunnable(videoPath, destPath);
-                        Thread th = new Thread(wrapper, "VideoConvertRunnable");
+                        VideoConvertRunnable runnable = new VideoConvertRunnable(compressVideoRequest);
+                        Thread th = new Thread(runnable, "VideoConvertRunnable");
                         th.start();
                         th.join();
                     } catch (Exception e) {
@@ -123,7 +114,7 @@ public class VideoController {
 
         @Override
         public void run() {
-            VideoController.getInstance().convertVideo(videoPath, destPath, 0, null);
+            VideoController.getInstance().convertVideo(compressVideoRequest);
         }
     }
 
@@ -152,20 +143,28 @@ public class VideoController {
 
     /**
      * Background conversion for queueing tasks
-     * @param path source file to compress
-     * @param dest destination directory to put result
+     *
+     * @param compressVideoRequest Request containing info for converting video.
      */
 
-public void scheduleVideoConvert(String path, String dest) {
-        startVideoConvertFromQueue(path, dest);
+    @SuppressWarnings({"unused", "RedundantSuppression"})
+    public void scheduleVideoConvert(CompressVideoRequest compressVideoRequest) {
+        startVideoConvertFromQueue(compressVideoRequest);
     }
 
-    private void startVideoConvertFromQueue(String path, String dest) {
-        VideoConvertRunnable.runConversion(path, dest);
+    private void startVideoConvertFromQueue(CompressVideoRequest compressVideoRequest) {
+        VideoConvertRunnable.runConversion(compressVideoRequest);
     }
 
     @TargetApi(16)
-    private long readAndWriteTrack(MediaExtractor extractor, MP4Builder mediaMuxer, MediaCodec.BufferInfo info, long start, long end, File file, boolean isAudio) throws Exception {
+    @SuppressWarnings({"unused", "RedundantSuppression"})
+    private long readAndWriteTrack(MediaExtractor extractor,
+                                   MP4Builder mediaMuxer,
+                                   MediaCodec.BufferInfo info,
+                                   long start, long end,
+                                   File file,
+                                   boolean isAudio) throws Exception {
+
         int trackIndex = selectTrack(extractor, isAudio);
         if (trackIndex >= 0) {
             extractor.selectTrack(trackIndex);
@@ -199,6 +198,7 @@ public void scheduleVideoConvert(String path, String dest) {
                         if (end < 0 || info.presentationTimeUs < end) {
                             info.offset = 0;
                             info.flags = extractor.getSampleFlags();
+                            //noinspection StatementWithEmptyBody
                             if (mediaMuxer.writeSampleData(muxerTrackIndex, buffer, info, isAudio)) {
                                 // didWriteData(messageObject, file, false, false);
                             }
@@ -242,82 +242,77 @@ public void scheduleVideoConvert(String path, String dest) {
 
     /**
      * Perform the actual video compression. Processes the frames and does the magic
-     * @param sourcePath the source uri for the file as per
-     * @param destinationPath the destination directory where compressed video is eventually saved
-     * @return
+     *
+     * @param compressVideoRequest Request containing info for converting video.
+     * @return True if video was converted successfully.
      */
     @TargetApi(16)
-    public boolean  convertVideo(final String sourcePath, String destinationPath, int quality, CompressProgressListener listener) {
-        this.path=sourcePath;
+    public boolean convertVideo(CompressVideoRequest compressVideoRequest) {
 
         MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-        retriever.setDataSource(path);
+        compressVideoRequest.getSourceVideo().asDataSource(retriever);
+
         String width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH);
         String height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT);
         String rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
-        long duration = Long.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)) * 1000;
+        long duration = Long.parseLong(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)) * 1000;
+        int originalBitRate = Integer.parseInt(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE));
 
         long startTime = -1;
         long endTime = -1;
 
-        int rotationValue = Integer.valueOf(rotation);
-        int originalWidth = Integer.valueOf(width);
-        int originalHeight = Integer.valueOf(height);
+        int rotationValue = Integer.parseInt(rotation);
+        int originalWidth = Integer.parseInt(width);
+        int originalHeight = Integer.parseInt(height);
 
-        int resultWidth;
-        int resultHeight;
-        int bitrate;
-        switch (quality) {
-            default:
-            case COMPRESS_QUALITY_HIGH:
-                resultWidth = originalWidth * 2 / 3;
-                resultHeight = originalHeight * 2 / 3;
-                bitrate = resultWidth * resultHeight * 30;
-                break;
-            case COMPRESS_QUALITY_MEDIUM:
-                resultWidth = originalWidth / 2;
-                resultHeight = originalHeight / 2;
-                bitrate = resultWidth * resultHeight * 10;
-                break;
-            case COMPRESS_QUALITY_LOW:
-                resultWidth = originalWidth / 2;
-                resultHeight = originalHeight / 2;
-                bitrate = (resultWidth/2) * (resultHeight/2) * 10;
-                break;
+        Integer targetWidth = compressVideoRequest.getTargetWidth();
+        if (targetWidth == null) {
+            targetWidth = compressVideoRequest.getCompressQuality().compressedWidth(originalWidth);
+        }
+
+        Integer targetHeight = compressVideoRequest.getTargetHeight();
+        if (targetHeight == null) {
+            targetHeight = compressVideoRequest.getCompressQuality().compressedHeight(originalHeight);
+        }
+
+        Integer targetBitRate = compressVideoRequest.getTargetBitRate();
+        if (targetBitRate == null) {
+            targetBitRate = compressVideoRequest.getCompressQuality().compressedBitRate(originalBitRate);
         }
 
         int rotateRender = 0;
 
-        File cacheFile = new File(destinationPath);
+        File cacheFile = new File(compressVideoRequest.getCompressedVideoAbsoluteFilePath());
 
-        if (Build.VERSION.SDK_INT < 18 && resultHeight > resultWidth && resultWidth != originalWidth && resultHeight != originalHeight) {
-            int temp = resultHeight;
-            resultHeight = resultWidth;
-            resultWidth = temp;
+        if (Build.VERSION.SDK_INT < 18 && targetHeight > targetWidth && targetWidth != originalWidth && targetHeight != originalHeight) {
+            int temp = targetHeight;
+            //noinspection SuspiciousNameCombination
+            targetHeight = targetWidth;
+            targetWidth = temp;
             rotationValue = 90;
             rotateRender = 270;
         } else if (Build.VERSION.SDK_INT > 20) {
             if (rotationValue == 90) {
-                int temp = resultHeight;
-                resultHeight = resultWidth;
-                resultWidth = temp;
+                int temp = targetHeight;
+                //noinspection SuspiciousNameCombination
+                targetHeight = targetWidth;
+                targetWidth = temp;
                 rotationValue = 0;
                 rotateRender = 270;
             } else if (rotationValue == 180) {
                 rotateRender = 180;
                 rotationValue = 0;
             } else if (rotationValue == 270) {
-                int temp = resultHeight;
-                resultHeight = resultWidth;
-                resultWidth = temp;
+                int temp = targetHeight;
+                //noinspection SuspiciousNameCombination
+                targetHeight = targetWidth;
+                targetWidth = temp;
                 rotationValue = 0;
                 rotateRender = 90;
             }
         }
 
-
-        File inputFile = new File(path);
-        if (!inputFile.canRead()) {
+        if (!compressVideoRequest.getSourceVideo().isReadable()) {
             didWriteData(true, true);
             return false;
         }
@@ -328,7 +323,7 @@ public void scheduleVideoConvert(String path, String dest) {
 
         long time = System.currentTimeMillis();
 
-        if (resultWidth != 0 && resultHeight != 0) {
+        if (targetWidth != 0 && targetHeight != 0) {
             MP4Builder mediaMuxer = null;
             MediaExtractor extractor = null;
 
@@ -337,13 +332,14 @@ public void scheduleVideoConvert(String path, String dest) {
                 Mp4Movie movie = new Mp4Movie();
                 movie.setCacheFile(cacheFile);
                 movie.setRotation(rotationValue);
-                movie.setSize(resultWidth, resultHeight);
+                movie.setSize(targetWidth, targetHeight);
                 mediaMuxer = new MP4Builder().createMovie(movie);
+
                 extractor = new MediaExtractor();
-                extractor.setDataSource(inputFile.toString());
+                compressVideoRequest.getSourceVideo().asDataSource(extractor);
 
 
-                if (resultWidth != originalWidth || resultHeight != originalHeight) {
+                if (targetWidth != originalWidth || targetHeight != originalHeight) {
                     int videoIndex;
                     videoIndex = selectTrack(extractor, false);
 
@@ -394,36 +390,38 @@ public void scheduleVideoConvert(String path, String dest) {
                             }
                             Log.e("tmessages", "colorFormat = " + colorFormat);
 
-                            int resultHeightAligned = resultHeight;
+                            int resultHeightAligned = targetHeight;
                             int padding = 0;
-                            int bufferSize = resultWidth * resultHeight * 3 / 2;
+                            int bufferSize = targetWidth * targetHeight * 3 / 2;
                             if (processorType == PROCESSOR_TYPE_OTHER) {
-                                if (resultHeight % 16 != 0) {
-                                    resultHeightAligned += (16 - (resultHeight % 16));
-                                    padding = resultWidth * (resultHeightAligned - resultHeight);
+                                if (targetHeight % 16 != 0) {
+                                    resultHeightAligned += (16 - (targetHeight % 16));
+                                    padding = targetWidth * (resultHeightAligned - targetHeight);
                                     bufferSize += padding * 5 / 4;
                                 }
                             } else if (processorType == PROCESSOR_TYPE_QCOM) {
                                 if (!manufacturer.toLowerCase().equals("lge")) {
-                                    int uvoffset = (resultWidth * resultHeight + 2047) & ~2047;
-                                    padding = uvoffset - (resultWidth * resultHeight);
+                                    int uvoffset = (targetWidth * targetHeight + 2047) & ~2047;
+                                    padding = uvoffset - (targetWidth * targetHeight);
                                     bufferSize += padding;
                                 }
-                            } else if (processorType == PROCESSOR_TYPE_TI) {
-                                //resultHeightAligned = 368;
-                                //bufferSize = resultWidth * resultHeightAligned * 3 / 2;
-                                //resultHeightAligned += (16 - (resultHeight % 16));
-                                //padding = resultWidth * (resultHeightAligned - resultHeight);
-                                //bufferSize += padding * 5 / 4;
-                            } else if (processorType == PROCESSOR_TYPE_MTK) {
-                                if (manufacturer.equals("baidu")) {
-                                    resultHeightAligned += (16 - (resultHeight % 16));
-                                    padding = resultWidth * (resultHeightAligned - resultHeight);
-                                    bufferSize += padding * 5 / 4;
+                            } else //noinspection StatementWithEmptyBody
+                                if (processorType == PROCESSOR_TYPE_TI) {
+                                    //resultHeightAligned = 368;
+                                    //bufferSize = targetWidth * resultHeightAligned * 3 / 2;
+                                    //resultHeightAligned += (16 - (resultHeight % 16));
+                                    //padding = targetWidth * (resultHeightAligned - resultHeight);
+                                    //bufferSize += padding * 5 / 4;
+                                } else if (processorType == PROCESSOR_TYPE_MTK) {
+                                    if (manufacturer.equals("baidu")) {
+                                        resultHeightAligned += (16 - (targetHeight % 16));
+                                        padding = targetWidth * (resultHeightAligned - targetHeight);
+                                        bufferSize += padding * 5 / 4;
+                                    }
                                 }
-                            }
 
                             extractor.selectTrack(videoIndex);
+                            //noinspection ConstantConditions
                             if (startTime > 0) {
                                 extractor.seekTo(startTime, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
                             } else {
@@ -431,14 +429,14 @@ public void scheduleVideoConvert(String path, String dest) {
                             }
                             MediaFormat inputFormat = extractor.getTrackFormat(videoIndex);
 
-                            MediaFormat outputFormat = MediaFormat.createVideoFormat(MIME_TYPE, resultWidth, resultHeight);
+                            MediaFormat outputFormat = MediaFormat.createVideoFormat(MIME_TYPE, targetWidth, targetHeight);
                             outputFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, colorFormat);
-                            outputFormat.setInteger(MediaFormat.KEY_BIT_RATE, bitrate);
+                            outputFormat.setInteger(MediaFormat.KEY_BIT_RATE, targetBitRate);
                             outputFormat.setInteger(MediaFormat.KEY_FRAME_RATE, 25);
                             outputFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 10);
                             if (Build.VERSION.SDK_INT < 18) {
-                                outputFormat.setInteger("stride", resultWidth + 32);
-                                outputFormat.setInteger("slice-height", resultHeight);
+                                outputFormat.setInteger("stride", targetWidth + 32);
+                                outputFormat.setInteger("slice-height", targetHeight);
                             }
 
                             encoder = MediaCodec.createEncoderByType(MIME_TYPE);
@@ -453,7 +451,7 @@ public void scheduleVideoConvert(String path, String dest) {
                             if (Build.VERSION.SDK_INT >= 18) {
                                 outputSurface = new OutputSurface();
                             } else {
-                                outputSurface = new OutputSurface(resultWidth, resultHeight, rotateRender);
+                                outputSurface = new OutputSurface(targetWidth, targetHeight, rotateRender);
                             }
                             decoder.configure(inputFormat, outputSurface.getSurface(), null, 0);
                             decoder.start();
@@ -504,6 +502,7 @@ public void scheduleVideoConvert(String path, String dest) {
                                     }
                                 }
 
+                                //noinspection ConstantConditions
                                 boolean decoderOutputAvailable = !decoderDone;
                                 boolean encoderOutputAvailable = true;
                                 while (decoderOutputAvailable || encoderOutputAvailable) {
@@ -557,7 +556,8 @@ public void scheduleVideoConvert(String path, String dest) {
                                                     }
                                                 }
 
-                                                MediaFormat newFormat = MediaFormat.createVideoFormat(MIME_TYPE, resultWidth, resultHeight);
+                                                MediaFormat newFormat = MediaFormat.createVideoFormat(MIME_TYPE, targetWidth, targetHeight);
+                                                //noinspection ConstantConditions
                                                 if (sps != null && pps != null) {
                                                     newFormat.setByteBuffer("csd-0", sps);
                                                     newFormat.setByteBuffer("csd-1", pps);
@@ -572,11 +572,11 @@ public void scheduleVideoConvert(String path, String dest) {
                                         continue;
                                     }
 
-                                    if (!decoderDone) {
-                                        int decoderStatus = decoder.dequeueOutputBuffer(info, TIMEOUT_USEC);
-                                        if (decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER) {
-                                            decoderOutputAvailable = false;
-                                        } else if (decoderStatus == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
+                                    int decoderStatus = decoder.dequeueOutputBuffer(info, TIMEOUT_USEC);
+                                    if (decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                                        decoderOutputAvailable = false;
+                                    } else //noinspection StatementWithEmptyBody
+                                        if (decoderStatus == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
 
                                         } else if (decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                                             MediaFormat newFormat = decoder.getOutputFormat();
@@ -590,12 +590,14 @@ public void scheduleVideoConvert(String path, String dest) {
                                             } else {
                                                 doRender = info.size != 0 || info.presentationTimeUs != 0;
                                             }
+                                            //noinspection ConstantConditions
                                             if (endTime > 0 && info.presentationTimeUs >= endTime) {
                                                 inputDone = true;
                                                 decoderDone = true;
                                                 doRender = false;
                                                 info.flags |= MediaCodec.BUFFER_FLAG_END_OF_STREAM;
                                             }
+                                            //noinspection ConstantConditions
                                             if (startTime > 0 && videoTime == -1) {
                                                 if (info.presentationTimeUs < startTime) {
                                                     doRender = false;
@@ -615,14 +617,17 @@ public void scheduleVideoConvert(String path, String dest) {
                                                 }
                                                 if (!errorWait) {
                                                     if (Build.VERSION.SDK_INT >= 18) {
+
                                                         outputSurface.drawImage(false);
                                                         inputSurface.setPresentationTime(info.presentationTimeUs * 1000);
 
-                                                        if (listener != null) {
-                                                            listener.onProgress((float) info.presentationTimeUs / (float) duration * 100);
+                                                        if (compressVideoRequest.getCompressListener() != null) {
+                                                            float progress = (float) info.presentationTimeUs / (float) duration * 100;
+                                                            compressVideoRequest.getCompressListener().onProgress(progress);
                                                         }
 
                                                         inputSurface.swapBuffers();
+
                                                     } else {
                                                         int inputBufIndex = encoder.dequeueInputBuffer(TIMEOUT_USEC);
                                                         if (inputBufIndex >= 0) {
@@ -630,7 +635,7 @@ public void scheduleVideoConvert(String path, String dest) {
                                                             ByteBuffer rgbBuf = outputSurface.getFrame();
                                                             ByteBuffer yuvBuf = encoderInputBuffers[inputBufIndex];
                                                             yuvBuf.clear();
-                                                            convertVideoFrame(rgbBuf, yuvBuf, colorFormat, resultWidth, resultHeight, padding, swapUV);
+                                                            convertVideoFrame(rgbBuf, yuvBuf, colorFormat, targetWidth, targetHeight, padding, swapUV);
                                                             encoder.queueInputBuffer(inputBufIndex, 0, bufferSize, info.presentationTimeUs, 0);
                                                         } else {
                                                             Log.e("tmessages", "input buffer not available");
@@ -651,9 +656,9 @@ public void scheduleVideoConvert(String path, String dest) {
                                                 }
                                             }
                                         }
-                                    }
                                 }
                             }
+                            //noinspection ConstantConditions
                             if (videoTime != -1) {
                                 videoStartTime = videoTime;
                             }
@@ -710,7 +715,7 @@ public void scheduleVideoConvert(String path, String dest) {
         }
         didWriteData(true, error);
 
-        cachedFile=cacheFile;
+        cachedFile = cacheFile;
 
        /* File fdelete = inputFile;
         if (fdelete.exists()) {
@@ -722,9 +727,9 @@ public void scheduleVideoConvert(String path, String dest) {
         }*/
 
         //inputFile.delete();
-        Log.e("ViratPath",path+"");
-        Log.e("ViratPath",cacheFile.getPath()+"");
-        Log.e("ViratPath",inputFile.getPath()+"");
+        Log.e("ViratPath", path + "");
+        Log.e("ViratPath", cacheFile.getPath() + "");
+        Log.e("ViratPath", compressVideoRequest.getSourceVideo() + "");
 
 
        /* Log.e("ViratPath",path+"");
@@ -750,7 +755,7 @@ public void scheduleVideoConvert(String path, String dest) {
         }
 */
 
-    //    cacheFile.delete();
+        //    cacheFile.delete();
 
        /* try {
            // copyFile(cacheFile,inputFile);
@@ -759,25 +764,17 @@ public void scheduleVideoConvert(String path, String dest) {
         } catch (IOException e) {
             e.printStackTrace();
         }*/
-         // cacheFile.delete();
-       // inputFile.delete();
+        // cacheFile.delete();
+        // inputFile.delete();
         return true;
     }
 
-    public static void copyFile(File src, File dst) throws IOException
-    {
-        FileChannel inChannel = new FileInputStream(src).getChannel();
-        FileChannel outChannel = new FileOutputStream(dst).getChannel();
-        try
-        {
+    @SuppressWarnings({"unused", "RedundantSuppression"})
+    public static void copyFile(File src, File dst) throws IOException {
+        //noinspection TryStatementWithMultipleResources
+        try (FileChannel inChannel = new FileInputStream(src).getChannel();
+             FileChannel outChannel = new FileOutputStream(dst).getChannel()) {
             inChannel.transferTo(1, inChannel.size(), outChannel);
-        }
-        finally
-        {
-            if (inChannel != null)
-                inChannel.close();
-            if (outChannel != null)
-                outChannel.close();
         }
     }
 }

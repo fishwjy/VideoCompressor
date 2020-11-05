@@ -3,8 +3,6 @@ package com.vincent.videocompress;
 import android.annotation.TargetApi;
 import android.content.Intent;
 import android.content.res.Configuration;
-import android.database.Cursor;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.support.annotation.Nullable;
@@ -15,6 +13,7 @@ import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import com.vincent.videocompressor.CompressListener;
 import com.vincent.videocompressor.VideoCompress;
 
 import java.io.File;
@@ -67,7 +66,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 String destPath = tv_output.getText().toString() + File.separator + "VID_" + new SimpleDateFormat("yyyyMMdd_HHmmss", getLocale()).format(new Date()) + ".mp4";
-                VideoCompress.compressVideoLow(tv_input.getText().toString(), destPath, new VideoCompress.CompressListener() {
+                VideoCompress.compressVideoLow(tv_input.getText().toString(), destPath, new CompressListener() {
                     @Override
                     public void onStart() {
                         tv_indicator.setText("Compressing..." + "\n"
